@@ -48,15 +48,16 @@ update_system() {
 # Install system dependencies
 install_system_deps() {
     echo -e "${BLUE}[2/8] Installing system dependencies...${NC}"
+    
+    # Core dependencies
     sudo apt-get install -y \
         python3 \
         python3-pip \
         python3-venv \
         python3-dev \
-        python3-picamera2 \
-        libcamera-dev \
-        libcamera-apps \
-        libatlas-base-dev \
+        git \
+        cmake \
+        pkg-config \
         libjpeg-dev \
         libtiff-dev \
         libpng-dev \
@@ -64,18 +65,23 @@ install_system_deps() {
         libavformat-dev \
         libswscale-dev \
         libv4l-dev \
-        libxvidcore-dev \
-        libx264-dev \
-        libgtk-3-dev \
-        libcanberra-gtk3-dev \
+        libcap-dev
+    
+    # Camera dependencies (Raspberry Pi)
+    sudo apt-get install -y \
+        python3-libcamera \
+        python3-kms++ \
+        libcamera-dev \
+        libcamera-apps \
+        python3-picamera2 \
+        python3-prctl || true
+    
+    # Try to install optional packages (may not exist on all systems)
+    sudo apt-get install -y \
+        libatlas-base-dev \
         libhdf5-dev \
-        libhdf5-serial-dev \
-        libqt5gui5 \
-        libqt5webkit5 \
-        libqt5test5 \
-        git \
-        cmake \
-        pkg-config
+        libopenblas-dev || true
+    
     echo -e "${GREEN}✓ System dependencies installed${NC}"
 }
 
@@ -166,7 +172,7 @@ check_model() {
 
 # Create systemd service
 create_service() {
-    echo -e "${BLUE}[8/8] Creating systemd service...${NC}"
+    echo -e "${BLUE}[8/8] Creating systemd service for auto-start...${NC}"
     
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     USER=$(whoami)
@@ -190,9 +196,12 @@ WantedBy=multi-user.target
 EOF"
     
     sudo systemctl daemon-reload
-    echo -e "${GREEN}✓ Systemd service created${NC}"
-    echo -e "${YELLOW}  To enable auto-start: sudo systemctl enable trashbin-detector${NC}"
-    echo -e "${YELLOW}  To start service: sudo systemctl start trashbin-detector${NC}"
+    
+    # Enable service to start on boot automatically
+    sudo systemctl enable trashbin-detector
+    
+    echo -e "${GREEN}✓ Systemd service created and enabled for auto-start${NC}"
+    echo -e "${GREEN}✓ System will start detection automatically on power-on${NC}"
 }
 
 # Main installation

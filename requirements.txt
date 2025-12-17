@@ -24,8 +24,8 @@ requests>=2.31.0
 python-logging-loki>=0.3.1
 psutil>=5.9.0
 
-# Optional: GPIO for alerts/indicators
-# RPi.GPIO>=0.7.1
+# GPIO for buzzer alerts (Raspberry Pi)
+RPi.GPIO>=0.7.1
 
 # Optional: For notifications
 # python-telegram-bot>=20.0

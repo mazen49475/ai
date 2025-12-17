@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.model_loader import ModelLoader
 from src.camera import CameraManager
 from src.web_server import WebServer
+from src.alerts import AlertManager
 from src.utils import load_config, setup_logging, draw_detections
 
 import cv2
@@ -37,6 +38,7 @@ class TrashBinDetector:
         self.model = None
         self.camera = None
         self.web_server = None
+        self.alert_manager = None
         
         # State variables
         self.running = False
@@ -71,6 +73,12 @@ class TrashBinDetector:
                 self.web_server = WebServer(self.config, self)
                 self.web_server.start()
                 self.logger.info(f"Web server started on port {self.config['server']['port']}")
+            
+            # Initialize alert system (buzzer on GPIO 17)
+            self.logger.info("Initializing alert system...")
+            self.alert_manager = AlertManager(self.config)
+            self.alert_manager.initialize()
+            self.logger.info("Alert system initialized")
             
             return True
             
@@ -196,6 +204,10 @@ class TrashBinDetector:
                                    ", ".join([f"{d['class_name']} ({d['confidence']:.2f})" 
                                             for d in detections]))
                 
+                # Trigger buzzer alert if trash detected
+                if self.alert_manager and len(detections) > 0:
+                    self.alert_manager.process_detections(detections)
+                
                 # Save detection if enabled
                 self.save_detection(annotated_frame, detections)
                 
@@ -237,6 +249,9 @@ class TrashBinDetector:
         
         if self.web_server:
             self.web_server.stop()
+        
+        if self.alert_manager:
+            self.alert_manager.cleanup()
         
         self.logger.info("Cleanup complete")
 
