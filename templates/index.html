@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trash Bin Detection System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🗑️ Trash Bin Detection System</h1>
+            <div class="status-badge" id="statusBadge">
+                <span class="status-dot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+        </header>
+
+        <main>
+            <div class="video-section">
+                <div class="video-container">
+                    <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+                    <div class="video-overlay" id="videoOverlay">
+                        <span>No Video Feed</span>
+                    </div>
+                </div>
+                <div class="video-controls">
+                    <button class="btn btn-primary" onclick="captureSnapshot()">
+                        📸 Snapshot
+                    </button>
+                    <button class="btn btn-secondary" onclick="toggleFullscreen()">
+                        ⛶ Fullscreen
+                    </button>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <div class="card">
+                    <h3>📊 Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="fpsValue">0</span>
+                            <span class="stat-label">FPS</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="frameCount">0</span>
+                            <span class="stat-label">Frames</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="detectionCount">0</span>
+                            <span class="stat-label">Detections</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>🎯 Current Detections</h3>
+                    <div class="detections-list" id="detectionsList">
+                        <p class="no-detections">No detections</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>⚙️ Settings</h3>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="confidenceThreshold">Confidence Threshold</label>
+                            <input type="range" id="confidenceThreshold" min="0.1" max="1.0" step="0.05" value="0.5">
+                            <span id="confidenceValue">0.50</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="updateSettings()">
+                            💾 Apply Settings
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>💻 System Info</h3>
+                    <div class="system-info" id="systemInfo">
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Trash Bin Detection System - Raspberry Pi 4 B</p>
+        </footer>
+    </div>
+
+    <script>
+        // Update status periodically
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('fpsValue').textContent = data.fps.toFixed(1);
+                    document.getElementById('frameCount').textContent = data.frame_count;
+                    document.getElementById('detectionCount').textContent = data.detection_count;
+                    
+                    // Update status badge
+                    const badge = document.getElementById('statusBadge');
+                    const statusText = document.getElementById('statusText');
+                    if (data.running) {
+                        badge.classList.remove('offline');
+                        badge.classList.add('online');
+                        statusText.textContent = 'Running';
+                    } else {
+                        badge.classList.remove('online');
+                        badge.classList.add('offline');
+                        statusText.textContent = 'Stopped';
+                    }
+                    
+                    // Update detections list
+                    updateDetectionsList(data.current_detections);
+                })
+                .catch(err => {
+                    console.error('Status update failed:', err);
+                    document.getElementById('statusBadge').classList.add('offline');
+                    document.getElementById('statusText').textContent = 'Disconnected';
+                });
+        }
+
+        function updateDetectionsList(detections) {
+            const list = document.getElementById('detectionsList');
+            
+            if (!detections || detections.length === 0) {
+                list.innerHTML = '<p class="no-detections">No detections</p>';
+                return;
+            }
+            
+            let html = '';
+            detections.forEach((det, index) => {
+                html += `
+                    <div class="detection-item">
+                        <span class="detection-class">${det.class_name}</span>
+                        <span class="detection-confidence">${(det.confidence * 100).toFixed(1)}%</span>
+                    </div>
+                `;
+            });
+            list.innerHTML = html;
+        }
+
+        function captureSnapshot() {
+            fetch('/api/snapshot')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Snapshot saved: ' + data.filename);
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(err => alert('Failed to capture snapshot'));
+        }
+
+        function toggleFullscreen() {
+            const video = document.getElementById('videoFeed');
+            if (video.requestFullscreen) {
+                video.requestFullscreen();
+            }
+        }
+
+        function updateSettings() {
+            const confidence = document.getElementById('confidenceThreshold').value;
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({confidence_threshold: confidence})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Settings updated!');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(err => alert('Failed to update settings'));
+        }
+
+        function loadSystemInfo() {
+            fetch('/api/system')
+                .then(response => response.json())
+                .then(data => {
+                    let html = '';
+                    if (data.device_model) {
+                        html += `<p><strong>Device:</strong> ${data.device_model}</p>`;
+                    }
+                    html += `<p><strong>Platform:</strong> ${data.platform} ${data.platform_release}</p>`;
+                    html += `<p><strong>Python:</strong> ${data.python_version}</p>`;
+                    if (data.memory_total_gb) {
+                        html += `<p><strong>Memory:</strong> ${data.memory_available_gb}GB / ${data.memory_total_gb}GB</p>`;
+                    }
+                    if (data.cpu_percent !== undefined) {
+                        html += `<p><strong>CPU:</strong> ${data.cpu_percent}%</p>`;
+                    }
+                    document.getElementById('systemInfo').innerHTML = html;
+                })
+                .catch(err => {
+                    document.getElementById('systemInfo').innerHTML = '<p>Failed to load</p>';
+                });
+        }
+
+        // Confidence slider
+        document.getElementById('confidenceThreshold').addEventListener('input', function() {
+            document.getElementById('confidenceValue').textContent = parseFloat(this.value).toFixed(2);
+        });
+
+        // Video feed error handling
+        document.getElementById('videoFeed').addEventListener('error', function() {
+            document.getElementById('videoOverlay').style.display = 'flex';
+        });
+
+        document.getElementById('videoFeed').addEventListener('load', function() {
+            document.getElementById('videoOverlay').style.display = 'none';
+        });
+
+        // Initialize
+        setInterval(updateStatus, 1000);
+        loadSystemInfo();
+        setInterval(loadSystemInfo, 10000);
+    </script>
+</body>
+</html>

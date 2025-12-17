@@ -1,0 +1,31 @@
+# Trash Bin Detection - Python Dependencies
+# Optimized for Raspberry Pi 4 B
+
+# Core ML/CV
+ultralytics>=8.0.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+
+# Raspberry Pi Camera
+picamera2>=0.3.12
+
+# Web Interface
+flask>=3.0.0
+flask-socketio>=5.3.0
+gevent>=23.9.0
+gevent-websocket>=0.10.1
+
+# Utilities
+pyyaml>=6.0
+Pillow>=10.0.0
+requests>=2.31.0
+
+# Logging & Monitoring
+python-logging-loki>=0.3.1
+psutil>=5.9.0
+
+# Optional: GPIO for alerts/indicators
+# RPi.GPIO>=0.7.1
+
+# Optional: For notifications
+# python-telegram-bot>=20.0

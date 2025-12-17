@@ -1,0 +1,75 @@
+# Trash Bin Detection Configuration
+
+# Model Settings
+model:
+  path: "models/best.pt"
+  confidence_threshold: 0.5
+  iou_threshold: 0.45
+  max_detections: 100
+  device: "cpu"  # Use "cpu" for Raspberry Pi, "0" for GPU
+
+# Camera Settings
+camera:
+  source: "picamera"  # "picamera" for Pi Camera, or video file path, or 0 for USB webcam
+  width: 640
+  height: 480
+  fps: 30
+  rotation: 0  # 0, 90, 180, or 270
+  flip_horizontal: false
+  flip_vertical: false
+
+# Detection Settings
+detection:
+  classes: null  # null for all classes, or list like [0, 1, 2]
+  min_box_area: 1000  # Minimum bounding box area to consider
+  tracking_enabled: false
+  
+# Web Server Settings
+server:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  threaded: true
+
+# Output Settings
+output:
+  save_images: true
+  save_video: false
+  output_dir: "output"
+  image_format: "jpg"
+  video_format: "mp4"
+  annotate_frames: true
+  show_fps: true
+  show_timestamp: true
+
+# Logging Settings
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_dir: "logs"
+  max_log_size_mb: 10
+  backup_count: 5
+  log_detections: true
+
+# Alert Settings
+alerts:
+  enabled: false
+  min_confidence: 0.7
+  cooldown_seconds: 30
+  # GPIO alert (LED/Buzzer)
+  gpio:
+    enabled: false
+    pin: 18
+    duration: 1.0
+  # Telegram notifications
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+
+# Performance Settings
+performance:
+  skip_frames: 0  # Skip N frames between detections (0 = process all)
+  resize_for_detection: true
+  detection_size: 640  # Resize to this size for detection
+  use_threading: true
+  buffer_size: 4
