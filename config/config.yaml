@@ -2,8 +2,8 @@
 
 # Model Settings
 model:
-  path: "models/best.pt"
-  confidence_threshold: 0.5
+  path: "best.pt"
+  confidence_threshold: 0.7
   iou_threshold: 0.45
   max_detections: 100
   device: "cpu"  # Use "cpu" for Raspberry Pi, "0" for GPU
