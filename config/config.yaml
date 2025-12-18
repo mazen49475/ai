@@ -53,16 +53,14 @@ logging:
 # Alert Settings
 alerts:
   enabled: true
-  min_confidence: 0.5
-  cooldown_seconds: 5
+  min_confidence: 0.7
   alert_classes:
-    - "garbage bin"
-  # GPIO alert (Buzzer)
+    - "garbage container"
+  # GPIO alert (Buzzer) - stays ON while detected
   gpio:
     enabled: true
     pin: 17  # GPIO 17 for buzzer
-    duration: 0.5  # Beep duration in seconds
-    pattern: "double"  # single, double, triple, long
+    continuous: true  # Buzzer stays ON while object detected
 
 # Performance Settings
 performance:
