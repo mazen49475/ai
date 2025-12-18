@@ -1,12 +1,14 @@
+# =============================================================================
 # Trash Bin Detection - Python Dependencies
-# Optimized for Raspberry Pi 4 B
+# Optimized for Raspberry Pi 4 64-bit
+# =============================================================================
 
-# Core ML/CV
+# Core ML/CV (YOLOv8)
 ultralytics>=8.0.0
 opencv-python-headless>=4.8.0
 numpy>=1.24.0
 
-# Raspberry Pi Camera
+# Raspberry Pi Camera (Picamera2 for 64-bit OS)
 picamera2>=0.3.12
 
 # Web Interface
@@ -21,11 +23,13 @@ Pillow>=10.0.0
 requests>=2.31.0
 
 # Logging & Monitoring
-python-logging-loki>=0.3.1
 psutil>=5.9.0
 
-# GPIO for buzzer alerts (Raspberry Pi)
+# GPIO for buzzer alerts on Raspberry Pi
+# Note: RPi.GPIO is pre-installed on Raspberry Pi OS
+# Install manually if needed: pip install RPi.GPIO
 RPi.GPIO>=0.7.1
 
-# Optional: For notifications
-# python-telegram-bot>=20.0
+# PyTorch (CPU version for Raspberry Pi - installed automatically with ultralytics)
+# torch>=2.0.0
+# torchvision>=0.15.0

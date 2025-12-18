@@ -1,16 +1,17 @@
 # Trash Bin Detection Configuration
+# Optimized for Raspberry Pi 4 64-bit
 
 # Model Settings
 model:
-  path: "best.pt"
-  confidence_threshold: 0.7
+  path: "models/best.pt"
+  confidence_threshold: 0.70  # 70% confidence threshold
   iou_threshold: 0.45
   max_detections: 100
-  device: "cpu"  # Use "cpu" for Raspberry Pi, "0" for GPU
+  device: "cpu"  # Use "cpu" for Raspberry Pi 4 (no CUDA)
 
 # Camera Settings
 camera:
-  source: "picamera"  # "picamera" for Pi Camera, or video file path, or 0 for USB webcam
+  source: "picamera"  # "picamera" for Pi Camera, 0 for USB webcam, or video file path
   width: 640
   height: 480
   fps: 30
@@ -23,7 +24,7 @@ detection:
   classes: null  # null for all classes, or list like [0, 1, 2]
   min_box_area: 1000  # Minimum bounding box area to consider
   tracking_enabled: false
-  
+
 # Web Server Settings
 server:
   host: "0.0.0.0"
@@ -50,22 +51,25 @@ logging:
   backup_count: 5
   log_detections: true
 
-# Alert Settings
+# Alert Settings - Buzzer on GPIO17
 alerts:
   enabled: true
-  min_confidence: 0.7
+  min_confidence: 0.70  # 70% confidence threshold for buzzer
   alert_classes:
     - "garbage container"
-  # GPIO alert (Buzzer) - stays ON while detected
+    - "trash"
+    - "bin"
+    - "waste"
+  # GPIO Buzzer - stays ON while class detected, OFF when not
   gpio:
     enabled: true
-    pin: 17  # GPIO 17 for buzzer
+    pin: 17  # GPIO 17 for buzzer (BCM numbering)
     continuous: true  # Buzzer stays ON while object detected
 
-# Performance Settings
+# Performance Settings - Optimized for Raspberry Pi 4
 performance:
-  skip_frames: 0  # Skip N frames between detections (0 = process all)
+  skip_frames: 1  # Skip 1 frame between detections for better performance
   resize_for_detection: true
-  detection_size: 640  # Resize to this size for detection
+  detection_size: 640  # YOLO detection size
   use_threading: true
   buffer_size: 4
