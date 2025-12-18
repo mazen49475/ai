@@ -29,7 +29,9 @@ threshold_lock = Lock()
 current_frame = None
 frame_lock = Lock()
 buzzer_state = False
-detection_info = {"count": 0, "fps": 0, "detections": [], "threshold": 0.8}
+detection_running = True  # Detection starts automatically
+detection_lock = Lock()
+detection_info = {"count": 0, "fps": 0, "detections": [], "threshold": 0.8, "running": True}
 
 # --- FLASK APP ---
 app = Flask(__name__)
@@ -120,9 +122,30 @@ HTML_TEMPLATE = """
         .btn:hover { background: #00cc66; }
         .btn-preset { background: #4488ff; color: white; }
         .btn-preset:hover { background: #3366cc; }
+        .btn-stop { background: #ff4444; color: white; }
+        .btn-stop:hover { background: #cc3333; }
+        .btn-start { background: #44aa44; color: white; }
+        .btn-start:hover { background: #339933; }
+        .btn-shutdown { background: #ff6600; color: white; }
+        .btn-shutdown:hover { background: #cc5500; }
+        .control-panel {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .system-status { 
+            padding: 8px 15px;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .running { background: #44aa44; }
+        .stopped { background: #ff4444; }
     </style>
     <script>
         let currentThreshold = 0.8;
+        let isRunning = true;
         
         function updateStatus() {
             fetch('/status')
@@ -137,7 +160,33 @@ HTML_TEMPLATE = """
                     currentThreshold = data.threshold;
                     document.getElementById('threshold-display').innerText = (data.threshold * 100).toFixed(0) + '%';
                     document.getElementById('threshold-slider').value = data.threshold * 100;
+                    
+                    isRunning = data.running;
+                    document.getElementById('system-status').className = 
+                        'system-status ' + (data.running ? 'running' : 'stopped');
+                    document.getElementById('system-status').innerText = 
+                        data.running ? '🟢 DETECTION RUNNING' : '🔴 DETECTION STOPPED';
+                    document.getElementById('toggle-btn').className = 
+                        'btn ' + (data.running ? 'btn-stop' : 'btn-start');
+                    document.getElementById('toggle-btn').innerText = 
+                        data.running ? '⏹ STOP DETECTION' : '▶ START DETECTION';
                 });
+        }
+        
+        function toggleDetection() {
+            fetch('/toggle_detection', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Detection toggled:', data.running);
+                });
+        }
+        
+        function shutdownSystem() {
+            if (confirm('Are you sure you want to shutdown the Raspberry Pi?')) {
+                fetch('/shutdown', {method: 'POST'})
+                    .then(() => alert('Shutting down...'))
+                    .catch(() => alert('Shutdown initiated'));
+            }
         }
         
         function setThreshold(value) {
@@ -162,6 +211,14 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <h1>🗑️ Trash Bin Detection</h1>
+        
+        <div class="control-panel">
+            <div id="system-status" class="system-status running">🟢 DETECTION RUNNING</div>
+            <div style="margin-top: 10px;">
+                <button id="toggle-btn" class="btn btn-stop" onclick="toggleDetection()">⏹ STOP DETECTION</button>
+                <button class="btn btn-shutdown" onclick="shutdownSystem()">⏻ SHUTDOWN PI</button>
+            </div>
+        </div>
         
         <div id="buzzer-status" class="status buzzer-off">🔕 BUZZER: OFF</div>
         
@@ -212,13 +269,70 @@ def index():
 def status():
     with threshold_lock:
         thresh = confidence_threshold
+    with detection_lock:
+        running = detection_running
     return jsonify({
         'buzzer_on': buzzer_state,
         'fps': detection_info['fps'],
         'detection_count': detection_info['count'],
         'detections': detection_info['detections'],
-        'threshold': thresh
+        'threshold': thresh,
+        'running': running
     })
+
+@app.route('/toggle_detection', methods=['POST'])
+def toggle_detection():
+    global detection_running, buzzer_state
+    with detection_lock:
+        detection_running = not detection_running
+        running = detection_running
+    if not running:
+        buzzer_off()
+        buzzer_state = False
+    print(f"🔄 Detection {'STARTED' if running else 'STOPPED'}")
+    return jsonify({'success': True, 'running': running})
+
+@app.route('/start_detection', methods=['POST'])
+def start_detection():
+    global detection_running
+    with detection_lock:
+        detection_running = True
+    print("▶ Detection STARTED")
+    return jsonify({'success': True, 'running': True})
+
+@app.route('/stop_detection', methods=['POST'])
+def stop_detection():
+    global detection_running, buzzer_state
+    with detection_lock:
+        detection_running = False
+    buzzer_off()
+    buzzer_state = False
+    print("⏹ Detection STOPPED")
+    return jsonify({'success': True, 'running': False})
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    global detection_running, buzzer_state
+    with detection_lock:
+        detection_running = False
+    buzzer_off()
+    buzzer_state = False
+    print("⏻ SHUTDOWN requested")
+    import subprocess
+    subprocess.Popen(['sudo', 'shutdown', '-h', 'now'])
+    return jsonify({'success': True, 'message': 'Shutting down...'})
+
+@app.route('/reboot', methods=['POST'])
+def reboot():
+    global detection_running, buzzer_state
+    with detection_lock:
+        detection_running = False
+    buzzer_off()
+    buzzer_state = False
+    print("🔄 REBOOT requested")
+    import subprocess
+    subprocess.Popen(['sudo', 'reboot'])
+    return jsonify({'success': True, 'message': 'Rebooting...'})
 
 @app.route('/set_threshold', methods=['POST'])
 def set_threshold():
@@ -424,7 +538,7 @@ def read_frame(camera_type, camera):
 
 # --- DETECTION LOOP ---
 def detection_loop(camera_type, camera):
-    global current_frame, buzzer_state, detection_info, confidence_threshold
+    global current_frame, buzzer_state, detection_info, confidence_threshold, detection_running
     
     frame_count = 0
     fps = 0
@@ -439,6 +553,10 @@ def detection_loop(camera_type, camera):
     
     while True:
         try:
+            # Check if detection is running
+            with detection_lock:
+                running = detection_running
+            
             ret, frame = read_frame(camera_type, camera)
             if not ret or frame is None:
                 time.sleep(0.01)
@@ -451,48 +569,54 @@ def detection_loop(camera_type, camera):
             with threshold_lock:
                 thresh = confidence_threshold
             
-            # Run inference
-            input_tensor = preprocess(frame)
-            outputs = session.run(output_names, {input_name: input_tensor})
-            
-            # Post-process with lower threshold to show all detections
-            detections = postprocess(outputs, w, h, conf_threshold=0.5)
-            
-            # Filter for buzzer (only >= threshold)
-            high_conf = [d for d in detections if d['confidence'] >= thresh]
-            
-            # Buzzer control
-            if len(high_conf) > 0:
-                if not buzzer_state:
-                    buzzer_on()
-                    buzzer_state = True
-                    print(f"🔔 ON: {high_conf[0]['class_name']} ({high_conf[0]['confidence']*100:.0f}%) >= {thresh*100:.0f}%")
-                total_detections += 1
+            if running:
+                # Run inference only when detection is running
+                input_tensor = preprocess(frame)
+                outputs = session.run(output_names, {input_name: input_tensor})
+                
+                # Post-process with lower threshold to show all detections
+                detections = postprocess(outputs, w, h, conf_threshold=0.5)
+                
+                # Filter for buzzer (only >= threshold)
+                high_conf = [d for d in detections if d['confidence'] >= thresh]
+                
+                # Buzzer control
+                if len(high_conf) > 0:
+                    if not buzzer_state:
+                        buzzer_on()
+                        buzzer_state = True
+                        print(f"🔔 ON: {high_conf[0]['class_name']} ({high_conf[0]['confidence']*100:.0f}%) >= {thresh*100:.0f}%")
+                    total_detections += 1
+                else:
+                    if buzzer_state:
+                        buzzer_off()
+                        buzzer_state = False
+                        print(f"🔕 OFF: No detection >= {thresh*100:.0f}%")
+                
+                # Draw detections
+                for det in detections:
+                    x1, y1, x2, y2 = det['bbox']
+                    conf = det['confidence']
+                    # Green if >= threshold, yellow if below
+                    color = (0, 255, 0) if conf >= thresh else (0, 200, 255)
+                    thickness = 3 if conf >= thresh else 1
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+                    label = f"{conf*100:.0f}%"
+                    cv2.putText(frame, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                
+                # Draw status
+                cv2.putText(frame, f"{'BUZZER ON' if buzzer_state else 'BUZZER OFF'}", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255) if buzzer_state else (0,255,0), 2)
             else:
-                if buzzer_state:
-                    buzzer_off()
-                    buzzer_state = False
-                    print(f"🔕 OFF: No detection >= {thresh*100:.0f}%")
-            
-            # Draw detections
-            for det in detections:
-                x1, y1, x2, y2 = det['bbox']
-                conf = det['confidence']
-                # Green if >= threshold, yellow if below
-                color = (0, 255, 0) if conf >= thresh else (0, 200, 255)
-                thickness = 3 if conf >= thresh else 1
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-                label = f"{conf*100:.0f}%"
-                cv2.putText(frame, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                # Detection stopped - show paused state
+                cv2.putText(frame, "DETECTION PAUSED", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
             
             # FPS calculation
             if frame_count % 10 == 0:
                 fps = 10 / (time.time() - fps_start)
                 fps_start = time.time()
             
-            # Draw status
-            cv2.putText(frame, f"{'BUZZER ON' if buzzer_state else 'BUZZER OFF'}", (10, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255) if buzzer_state else (0,255,0), 2)
             cv2.putText(frame, f"FPS: {fps:.1f} | Thresh: {thresh*100:.0f}%", (10, 60), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
             
@@ -503,6 +627,7 @@ def detection_loop(camera_type, camera):
             detection_info['fps'] = fps
             detection_info['count'] = total_detections
             detection_info['threshold'] = thresh
+            detection_info['running'] = running
             
         except Exception as e:
             print(f"Error: {e}")
